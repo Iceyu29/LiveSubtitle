@@ -49,40 +49,6 @@ except AttributeError as e:
 
 print(f"Using device '{mic_names[stereo_mix_index]}' (index {stereo_mix_index}).\n")
 
-# Listen to audio until a break key is pressed or silence is detected
-def listen_until_break(source, break_key='.', silence_threshold=300, silence_duration=0.3):
-    frames = []
-    chunk = getattr(source, "CHUNK", 1024)
-    sample_rate = getattr(source, "SAMPLE_RATE", 16000)
-    sample_width = getattr(source, "SAMPLE_WIDTH", 2)
-    silence_start_time = None
-    voice_detected = False
-    while True:
-        try:
-            data = source.stream.read(chunk)
-        except Exception as e:
-            print("Error reading audio data:", e)
-            break
-        frames.append(data)
-        # Check if the break key is pressed
-        if keyboard.is_pressed(break_key):
-            print(f"Break key '{break_key}' pressed.")
-            time.sleep(0.05)
-            break
-        rms_value = audioop.rms(data, sample_width)
-        # Check if silence is detected
-        if rms_value >= silence_threshold:
-            voice_detected = True
-            silence_start_time = None
-        else:
-            if voice_detected:
-                if silence_start_time is None:
-                    silence_start_time = time.time()
-                elif time.time() - silence_start_time >= silence_duration:
-                    break
-    audio_chunk = b"".join(frames)
-    return sr.AudioData(audio_chunk, sample_rate, sample_width), voice_detected
-
 time.sleep(2)
 
 print(
@@ -108,7 +74,7 @@ print(
     "| my   | Burmese        | ne   | Nepali         | si   | Sinhala        |\n"
     "| am   | Amharic        | sw   | Swahili        | so   | Somali         |\n"
     "| ha   | Hausa          | ig   | Igbo           | yo   | Yoruba         |\n"
-    "-------------------------------------------------------------------------"
+    "-------------------------------------------------------------------------\n"
 )
 
 # Translation settings
@@ -126,86 +92,150 @@ def get_valid_input(prompt, valid_options):
 
 source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
 target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
-display_option_input = input("Enter 'y' to display only translated text, or press Enter to display both recognized and translated text: ").strip()
-display_option = '1' if display_option_input.lower() == 'y' else '2'
-disable_tkinter_input = input("Enter 'y' to disable the subtitle window, or press Enter to keep it enabled: ").strip()
-disable_tkinter = disable_tkinter_input.lower() == 'y'
-
+# Removed display_option functionality
 font_size = 14
 src_lang_for_trans = source_lang.split("-")[0].lower()
 translator = Translator()
 
 print("------------------------------")
 
-# Create a tkinter window for displaying subtitles
-def subtitle_window(font_size=14):
-    window = Tk()
-    window.title("Translation")
-    window.overrideredirect(True)
-    window.attributes("-topmost", True)
-    window.attributes("-alpha", 0.7)
-    window.configure(bg='black')
-    window.minsize(500, 50)
-    label = Label(window, text="", font=("Arial", font_size), wraplength=1480, fg='white', bg='black')
+# Global variable to control pause and resume
+paused = False
+
+def toggle_pause():
+    global paused
+    paused = not paused
+    if paused:
+        print("Paused.")
+    else:
+        print("Resumed.")
+
+# Global variable to control subtitle visibility
+subtitle_visible = True
+
+def toggle_subtitle_visibility(subtitle):
+    global subtitle_visible
+    subtitle_visible = not subtitle_visible
+    if subtitle_visible:
+        subtitle.deiconify()
+        print("Subtitle is visible.")
+    else:
+        subtitle.withdraw()
+        print("Subtitle is hidden.")
+
+# Global variable to control text display mode
+display_both = True
+
+def toggle_display_mode():
+    global display_both
+    display_both = not display_both
+    if display_both:
+        print("Displaying both recognized and translated text.")
+    else:
+        print("Displaying only translated text.")
+
+# Listen to audio until a break key is pressed or silence is detected
+def listen_until_break(source, break_key='b', silence_threshold=300, silence_duration=0.3):
+    global paused
+    frames = []
+    chunk = getattr(source, "CHUNK", 1024)
+    sample_rate = getattr(source, "SAMPLE_RATE", 16000)
+    sample_width = getattr(source, "SAMPLE_WIDTH", 2)
+    silence_start_time = None
+    voice_detected = False
+    while True:
+        if paused:
+            time.sleep(0.1)
+            continue
+        try:
+            data = source.stream.read(chunk)
+        except Exception as e:
+            print("Error reading audio data:", e)
+            break
+        frames.append(data)
+        # Check if the break key is pressed
+        if keyboard.is_pressed(break_key):
+            print(f"Break key '{break_key}' pressed.")
+            time.sleep(0.05)
+            break
+        rms_value = audioop.rms(data, sample_width)
+        # Check if silence is detected
+        if rms_value >= silence_threshold:
+            voice_detected = True
+            silence_start_time = None
+        else:
+            if voice_detected:
+                if silence_start_time is None:
+                    silence_start_time = time.time()
+                elif time.time() - silence_start_time >= silence_duration:
+                    break
+    audio_chunk = b"".join(frames)
+    return sr.AudioData(audio_chunk, sample_rate, sample_width), voice_detected
+
+# Create a tkinter subtitle for displaying subtitles
+def create_subtitle(font_size=14):
+    subtitle = Tk()
+    subtitle.title("Translation")
+    subtitle.overrideredirect(True)
+    subtitle.attributes("-topmost", True)
+    subtitle.attributes("-alpha", 0.7)
+    subtitle.configure(bg='black')
+    subtitle.minsize(500, 50)
+    label = Label(subtitle, text="", font=("Arial", font_size), wraplength=1480, fg='white', bg='black')
     label.pack(expand=True, fill='both')
 
-    # Resize the wraplength of the label when the window is resized
+    # Resize the wraplength of the label when the subtitle is resized
     def update_wraplength(event):
-        label.config(wraplength=window.winfo_width() - 20)
+        label.config(wraplength=subtitle.winfo_width() - 20)
 
-    window.bind("<Configure>", update_wraplength)
+    subtitle.bind("<Configure>", update_wraplength)
 
-    resize_button = Canvas(window, width=15, height=15, bg='black', highlightthickness=0, cursor='size_nw_se')
+    resize_button = Canvas(subtitle, width=15, height=15, bg='black', highlightthickness=0, cursor='size_nw_se')
     resize_button.place(relx=1.0, rely=1.0, anchor='se')
     resize_button.create_polygon(0, 15, 15, 0, 15, 15, fill='grey')
 
-    # Allow the window to be moved and resized
+    # Allow the subtitle to be moved and resized
     def start_move(event):
-        window.x = event.x
-        window.y = event.y
+        subtitle.x = event.x
+        subtitle.y = event.y
 
     def do_move(event):
-        x = window.winfo_pointerx() - window.x
-        y = window.winfo_pointery() - window.y
-        window.geometry(f"+{x}+{y}")
+        x = subtitle.winfo_pointerx() - subtitle.x
+        y = subtitle.winfo_pointery() - subtitle.y
+        subtitle.geometry(f"+{x}+{y}")
 
     def start_resize(event):
-        window.x = event.x_root
-        window.y = event.y_root
+        subtitle.x = event.x_root
+        subtitle.y = event.y_root
 
     def do_resize(event):
-        new_width = window.winfo_width() + (event.x_root - window.x)
-        new_height = window.winfo_height() + (event.y_root - window.y)
-        window.geometry(f"{new_width}x{new_height}")
-        window.x = event.x_root
-        window.y = event.y_root
+        new_width = subtitle.winfo_width() + (event.x_root - subtitle.x)
+        new_height = subtitle.winfo_height() + (event.y_root - subtitle.y)
+        subtitle.geometry(f"{new_width}x{new_height}")
+        subtitle.x = event.x_root
+        subtitle.y = event.y_root
 
     label.bind("<Button-1>", start_move)
     label.bind("<B1-Motion>", do_move)
     resize_button.bind("<Button-1>", start_resize)
     resize_button.bind("<B1-Motion>", do_resize)
 
-    return window, label
+    return subtitle, label
 
-# Update the translation text in the subtitle window
-def update_translation(label, recognized_text, translation, display_option, source_lang, target_lang):
-    if display_option == '1':
-        print("------------------------------")
-        print(f"{target_lang}: {translation.text}")
-        print("------------------------------\n")
-        if not disable_tkinter:
-            label.config(text=f"{target_lang}: {translation.text}")
+# Update the translation text in the subtitle
+def update_translation(label, recognized_text, translation):
+    print("------------------------------")
+    if display_both:
+        print(f"{recognized_text}\n")
+    print(f"{translation.text}")
+    print("------------------------------\n")
+    if display_both:
+        label.config(text=f"{recognized_text}\n{translation.text}")
     else:
-        print("------------------------------")
-        print(f"{source_lang}: {recognized_text}\n")
-        print(f"{target_lang}: {translation.text}")
-        print("------------------------------\n")
-        if not disable_tkinter:
-            label.config(text=f"{source_lang}: {recognized_text}\n{target_lang}: {translation.text}")
-    if not disable_tkinter:
-        label.update_idletasks()
-        label.update()
-        reset_clear_timer(label)
+        label.config(text=f"{translation.text}")
+    label.update_idletasks()
+    label.update()
+    reset_clear_timer(label)
 
 # Reset the label text after a certain duration of inactivity
 def reset_clear_timer(label):
@@ -225,7 +255,16 @@ async def main_loop(label):
         print("------------------------------")
         print("Calibrating for speech recognition...")
         recognizer.adjust_for_ambient_noise(source)
-        print("Calibration complete. Press '.' to break sentence.")
+        print("Calibration complete.\n")
+        print("Keyboard Shortcuts:\n"
+              "--------------------------------------------------\n"
+              "| Key | Function                                 |\n"
+              "--------------------------------------------------\n"
+              "| p   | Pause/Resume                             |\n"
+              "| t   | Toggle display mode                      |\n"
+              "| s   | Show/Hide subtitles                      |\n"
+              "| b   | End record segment                       |\n"
+              "--------------------------------------------------\n")
         print("------------------------------\n")
         while True:
             audio_data, voice_detected = listen_until_break(source)
@@ -241,7 +280,7 @@ async def main_loop(label):
                     src=src_lang_for_trans,
                     dest=target_lang
                 )
-                update_translation(label, recognized_text, translation, display_option, source_lang, target_lang)
+                update_translation(label, recognized_text, translation)
             except sr.UnknownValueError:
                 print("------------------------------")
                 print("Could not understand audio.")
@@ -253,15 +292,15 @@ async def main_loop(label):
 
 # Run the main loop
 def run_main(font_size):
-    if disable_tkinter:
-        asyncio.run(main_loop(None))
-    else:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        window, label = subtitle_window(font_size)
-        threading.Thread(target=loop.run_until_complete, args=(main_loop(label),), daemon=True).start()
-        window.mainloop()
-        
+    keyboard.add_hotkey('p', toggle_pause)
+    keyboard.add_hotkey('t', toggle_display_mode)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    subtitle, label = create_subtitle(font_size)
+    keyboard.add_hotkey('s', lambda: toggle_subtitle_visibility(subtitle))
+    threading.Thread(target=loop.run_until_complete, args=(main_loop(label),), daemon=True).start()
+    subtitle.mainloop()
+
 if __name__ == "__main__":
-    keyboard.add_hotkey('.', lambda: None)
+    keyboard.add_hotkey('b', lambda: None)
     run_main(font_size)
