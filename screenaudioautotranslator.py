@@ -21,6 +21,7 @@ print("This program uses the 'Stereo Mix' device to capture your system audio.")
 print("Ensure it is enabled in your system's sound settings and set to max volume.\n")
 time.sleep(1)
 
+# Get the index of the 'Stereo Mix' device
 mic_names = sr.Microphone.list_microphone_names()
 stereo_mix_index = next((index for index, name in enumerate(mic_names) if "stereo mix" in name.lower()), None)
 
@@ -30,6 +31,7 @@ if stereo_mix_index is None:
     time.sleep(10)
     exit()
 
+#  Try to initialize the 'Stereo Mix' device
 recognizer = sr.Recognizer()
 
 try:
@@ -47,6 +49,7 @@ except AttributeError as e:
 
 print(f"Using device '{mic_names[stereo_mix_index]}' (index {stereo_mix_index}).\n")
 
+# Listen to audio until a break key is pressed or silence is detected
 def listen_until_break(source, break_key='.', silence_threshold=300, silence_duration=0.3):
     frames = []
     chunk = getattr(source, "CHUNK", 1024)
@@ -61,11 +64,13 @@ def listen_until_break(source, break_key='.', silence_threshold=300, silence_dur
             print("Error reading audio data:", e)
             break
         frames.append(data)
+        # Check if the break key is pressed
         if keyboard.is_pressed(break_key):
             print(f"Break key '{break_key}' pressed.")
             time.sleep(0.05)
             break
         rms_value = audioop.rms(data, sample_width)
+        # Check if silence is detected
         if rms_value >= silence_threshold:
             voice_detected = True
             silence_start_time = None
@@ -105,6 +110,8 @@ print(
     "| ha   | Hausa          | ig   | Igbo           | yo   | Yoruba         |\n"
     "-------------------------------------------------------------------------"
 )
+
+# Translation settings
 valid_lang_codes = {
     "en", "ja", "ko", "zh-CN", "fr", "de", "es", "it", "ru", "pt", "vi", "th", "id", "ms", "ar", "hi", "bn", "ur",
     "fa", "tr", "nl", "pl", "sv", "no", "da", "fi", "cs", "hu", "el", "he", "ro", "sk", "sl", "bg", "uk", "hr", "sr",
@@ -130,7 +137,8 @@ translator = Translator()
 
 print("------------------------------")
 
-def create_translation_window(font_size=14):
+# Create a tkinter window for displaying subtitles
+def subtitle_window(font_size=14):
     window = Tk()
     window.title("Translation")
     window.overrideredirect(True)
@@ -141,6 +149,7 @@ def create_translation_window(font_size=14):
     label = Label(window, text="", font=("Arial", font_size), wraplength=1480, fg='white', bg='black')
     label.pack(expand=True, fill='both')
 
+    # Resize the wraplength of the label when the window is resized
     def update_wraplength(event):
         label.config(wraplength=window.winfo_width() - 20)
 
@@ -149,6 +158,16 @@ def create_translation_window(font_size=14):
     resize_button = Canvas(window, width=15, height=15, bg='black', highlightthickness=0, cursor='size_nw_se')
     resize_button.place(relx=1.0, rely=1.0, anchor='se')
     resize_button.create_polygon(0, 15, 15, 0, 15, 15, fill='grey')
+
+    # Allow the window to be moved and resized
+    def start_move(event):
+        window.x = event.x
+        window.y = event.y
+
+    def do_move(event):
+        x = window.winfo_pointerx() - window.x
+        y = window.winfo_pointery() - window.y
+        window.geometry(f"+{x}+{y}")
 
     def start_resize(event):
         window.x = event.x_root
@@ -161,23 +180,14 @@ def create_translation_window(font_size=14):
         window.x = event.x_root
         window.y = event.y_root
 
+    label.bind("<Button-1>", start_move)
+    label.bind("<B1-Motion>", do_move)
     resize_button.bind("<Button-1>", start_resize)
     resize_button.bind("<B1-Motion>", do_resize)
 
-    def start_move(event):
-        window.x = event.x
-        window.y = event.y
-
-    def do_move(event):
-        x = window.winfo_pointerx() - window.x
-        y = window.winfo_pointery() - window.y
-        window.geometry(f"+{x}+{y}")
-
-    label.bind("<Button-1>", start_move)
-    label.bind("<B1-Motion>", do_move)
-
     return window, label
 
+# Update the translation text in the subtitle window
 def update_translation(label, recognized_text, translation, display_option, source_lang, target_lang):
     if display_option == '1':
         print("------------------------------")
@@ -195,7 +205,21 @@ def update_translation(label, recognized_text, translation, display_option, sour
     if not disable_tkinter:
         label.update_idletasks()
         label.update()
+        reset_clear_timer(label)
 
+# Reset the label text after a certain duration of inactivity
+def reset_clear_timer(label):
+    def clear_label_text():
+        label.config(text="")
+        label.update_idletasks()
+        label.update()
+
+    if hasattr(reset_clear_timer, 'timer'):
+        reset_clear_timer.timer.cancel()
+    reset_clear_timer.timer = threading.Timer(5.0, clear_label_text)
+    reset_clear_timer.timer.start()
+
+# Main loop for speech recognition and translation
 async def main_loop(label):
     with sr.Microphone(device_index=stereo_mix_index) as source:
         print("------------------------------")
@@ -219,17 +243,22 @@ async def main_loop(label):
                 )
                 update_translation(label, recognized_text, translation, display_option, source_lang, target_lang)
             except sr.UnknownValueError:
-                print("Could not understand audio.\n")
+                print("------------------------------")
+                print("Could not understand audio.")
+                print("------------------------------\n")
             except sr.RequestError as req_err:
-                print(f"Could not request results; {req_err}\n")
+                print("------------------------------")
+                print(f"Could not request results; {req_err}")
+                print("------------------------------\n")
 
+# Run the main loop
 def run_main(font_size):
     if disable_tkinter:
         asyncio.run(main_loop(None))
     else:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        window, label = create_translation_window(font_size)
+        window, label = subtitle_window(font_size)
         threading.Thread(target=loop.run_until_complete, args=(main_loop(label),), daemon=True).start()
         window.mainloop()
         
