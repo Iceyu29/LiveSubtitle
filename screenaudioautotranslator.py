@@ -4,15 +4,19 @@ import audioop
 import keyboard
 import speech_recognition as sr
 from googletrans import Translator
-from tkinter import Tk, Label
+from tkinter import Tk, Label, Canvas
 import threading
 
-print(
-    "===================================\n"
-    "|  Screen Audio Translation v1.0  |\n"
-    "|           by Iceyu29            |\n"
-    "===================================\n"
-)
+print(r"""  ____                              _             _ _     _____                    _       _             
+ / ___|  ___ _ __ ___  ___ _ __    / \  _   _  __| (_) __|_   _| __ __ _ _ __  ___| | __ _| |_ ___  _ __ 
+ \___ \ / __| '__/ _ \/ _ \ '_ \  / _ \| | | |/ _` | |/ _ \| || '__/ _` | '_ \/ __| |/ _` | __/ _ \| '__|
+  ___) | (__| | |  __/  __/ | | |/ ___ \ |_| | (_| | | (_) | || | | (_| | | | \__ \ | (_| | || (_) | |   
+ |____/ \___|_|  \___|\___|_| |_/_/   \_\__,_|\__,_|_|\___/|_||_|  \__,_|_| |_|___/_|\__,_|\__\___/|_|   """)
+print("-----------------------------------")
+print("-Copyright of Iceyu29, 2025       -")
+print("-https:/https://github.com/Iceyu29-")
+print("-----------------------------------\n")
+time.sleep(1)
 print("This program uses the 'Stereo Mix' device to capture your system audio.")
 print("Ensure it is enabled in your system's sound settings and set to max volume.\n")
 time.sleep(1)
@@ -20,7 +24,7 @@ time.sleep(1)
 mic_names = sr.Microphone.list_microphone_names()
 stereo_mix_index = next((index for index, name in enumerate(mic_names) if "stereo mix" in name.lower()), None)
 
-if (stereo_mix_index is None):
+if stereo_mix_index is None:
     print("Stereo Mix device not found. Please ensure it is enabled and try again.\n")
     print("Closing in 10 seconds...")
     time.sleep(10)
@@ -113,20 +117,6 @@ def get_valid_input(prompt, valid_options):
         print("Invalid input. Please try again.\n")
     return user_input
 
-def get_font_size(prompt, default=13):
-    while True:
-        user_input = input(prompt).strip()
-        if user_input == "":
-            return default
-        try:
-            font_size = int(user_input)
-            if 8 <= font_size <= 72:
-                return font_size
-            else:
-                print("Invalid input. Please enter a number between 8 and 72.")
-        except ValueError:
-            print("Invalid input. Please enter a valid number.")
-
 source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
 target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
 display_option_input = input("Enter 'y' to display only translated text, or press Enter to display both recognized and translated text: ").strip()
@@ -134,14 +124,13 @@ display_option = '1' if display_option_input.lower() == 'y' else '2'
 disable_tkinter_input = input("Enter 'y' to disable the subtitle window, or press Enter to keep it enabled: ").strip()
 disable_tkinter = disable_tkinter_input.lower() == 'y'
 
-font_size = get_font_size("Enter subtitle font size (8-72, press Enter to set default 13): ") if not disable_tkinter else 13
-
+font_size = 14
 src_lang_for_trans = source_lang.split("-")[0].lower()
 translator = Translator()
 
 print("------------------------------")
 
-def create_translation_window(font_size=13):
+def create_translation_window(font_size=14):
     window = Tk()
     window.title("Translation")
     window.overrideredirect(True)
@@ -149,9 +138,26 @@ def create_translation_window(font_size=13):
     window.attributes("-alpha", 0.7)
     window.configure(bg='black')
     window.minsize(500, 50)
-    window.maxsize(1000, 100)
     label = Label(window, text="", font=("Arial", font_size), wraplength=1480, fg='white', bg='black')
     label.pack(expand=True, fill='both')
+
+    resize_button = Canvas(window, width=15, height=15, bg='black', highlightthickness=0, cursor='size_nw_se')
+    resize_button.place(relx=1.0, rely=1.0, anchor='se')
+    resize_button.create_polygon(0, 15, 15, 0, 15, 15, fill='grey')
+
+    def start_resize(event):
+        window.x = event.x_root
+        window.y = event.y_root
+
+    def do_resize(event):
+        new_width = window.winfo_width() + (event.x_root - window.x)
+        new_height = window.winfo_height() + (event.y_root - window.y)
+        window.geometry(f"{new_width}x{new_height}")
+        window.x = event.x_root
+        window.y = event.y_root
+
+    resize_button.bind("<Button-1>", start_resize)
+    resize_button.bind("<B1-Motion>", do_resize)
 
     def start_move(event):
         window.x = event.x
@@ -184,10 +190,6 @@ def update_translation(label, recognized_text, translation, display_option, sour
     if not disable_tkinter:
         label.update_idletasks()
         label.update()
-        window_width = max(min(label.winfo_reqwidth(), 1000), 100)
-        window_height = max(min(label.winfo_reqheight(), 500), 50)
-        label.master.geometry(f"{window_width}x{window_height}")
-        label.after(5000, lambda: label.config(text=""))
 
 async def main_loop(label):
     with sr.Microphone(device_index=stereo_mix_index) as source:
