@@ -31,7 +31,7 @@ if stereo_mix_index is None:
     time.sleep(10)
     exit()
 
-#  Try to initialize the 'Stereo Mix' device
+# Try to initialize the 'Stereo Mix' device
 recognizer = sr.Recognizer()
 
 try:
@@ -57,7 +57,7 @@ print(
     "| Code | Language       | Code | Language       | Code | Language       |\n"
     "-------------------------------------------------------------------------\n"
     "| en   | English        | ja   | Japanese       | ko   | Korean         |\n"
-    "| zh-CN| Chinese        | fr   | French         | de   | German         |\n"
+    "| cn   | Chinese        | fr   | French         | de   | German         |\n"
     "| es   | Spanish        | it   | Italian        | ru   | Russian        |\n"
     "| pt   | Portuguese     | vi   | Vietnamese     | th   | Thai           |\n"
     "| id   | Indonesian     | ms   | Malay          | ar   | Arabic         |\n"
@@ -79,7 +79,7 @@ print(
 
 # Translation settings
 valid_lang_codes = {
-    "en", "ja", "ko", "zh-CN", "fr", "de", "es", "it", "ru", "pt", "vi", "th", "id", "ms", "ar", "hi", "bn", "ur",
+    "en", "ja", "ko", "cn", "fr", "de", "es", "it", "ru", "pt", "vi", "th", "id", "ms", "ar", "hi", "bn", "ur",
     "fa", "tr", "nl", "pl", "sv", "no", "da", "fi", "cs", "hu", "el", "he", "ro", "sk", "sl", "bg", "uk", "hr", "sr",
     "ca", "eu", "gl", "et", "lv", "lt", "tl", "km", "my", "ne", "si", "am", "sw", "so", "ha", "ig", "yo"
 }
@@ -90,16 +90,20 @@ def get_valid_input(prompt, valid_options):
         print("Invalid input. Please try again.\n")
     return user_input
 
+def get_yes_no_input(prompt):
+    while (user_input := input(prompt).strip().lower()) not in {"y", "n"}:
+        print("Invalid input. Please enter 'y' or 'n'.\n")
+    return user_input == "y"
+
 source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
 target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
-# Removed display_option functionality
 font_size = 14
 src_lang_for_trans = source_lang.split("-")[0].lower()
 translator = Translator()
 
 print("------------------------------")
 
-# Global variable to control pause and resume
+# Control pause and resume
 paused = False
 
 def toggle_pause():
@@ -110,7 +114,7 @@ def toggle_pause():
     else:
         print("Resumed.")
 
-# Global variable to control subtitle visibility
+# Control subtitle visibility
 subtitle_visible = True
 
 def toggle_subtitle_visibility(subtitle):
@@ -123,7 +127,7 @@ def toggle_subtitle_visibility(subtitle):
         subtitle.withdraw()
         print("Subtitle is hidden.")
 
-# Global variable to control text display mode
+# Control text display mode
 display_both = True
 
 def toggle_display_mode():
@@ -154,7 +158,7 @@ def listen_until_break(source, break_key='b', silence_threshold=300, silence_dur
             break
         frames.append(data)
         # Check if the break key is pressed
-        if keyboard.is_pressed(break_key):
+        if enable_shortcuts and keyboard.is_pressed(break_key):
             print(f"Break key '{break_key}' pressed.")
             time.sleep(0.05)
             break
@@ -256,16 +260,19 @@ async def main_loop(label):
         print("Calibrating for speech recognition...")
         recognizer.adjust_for_ambient_noise(source)
         print("Calibration complete.\n")
-        print("Keyboard Shortcuts:\n"
-              "--------------------------------------------------\n"
-              "| Key | Function                                 |\n"
-              "--------------------------------------------------\n"
-              "| p   | Pause/Resume                             |\n"
-              "| t   | Toggle display mode                      |\n"
-              "| s   | Show/Hide subtitles                      |\n"
-              "| b   | End record segment                       |\n"
-              "--------------------------------------------------\n")
-        print("------------------------------\n")
+        time.sleep(1)
+        if enable_shortcuts:
+            print("Keyboard Shortcuts:\n"
+                  "--------------------------------------------------\n"
+                  "| Key | Function                                 |\n"
+                  "--------------------------------------------------\n"
+                  "| p   | Pause/Resume                             |\n"
+                  "| d   | Toggle display mode                      |\n"
+                  "| s   | Show/Hide subtitles                      |\n"
+                  "| b   | Break sentence                           |\n"
+                  "| l   | Return to language selection             |\n"
+                  "--------------------------------------------------\n")
+            print("------------------------------\n")
         while True:
             audio_data, voice_detected = listen_until_break(source)
             if not voice_detected:
@@ -290,17 +297,31 @@ async def main_loop(label):
                 print(f"Could not request results; {req_err}")
                 print("------------------------------\n")
 
+def return_to_language_selection():
+    global source_lang, target_lang, src_lang_for_trans
+    print("Returning to language selection...")
+    time.sleep(2)
+    source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
+    target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
+    src_lang_for_trans = source_lang.split("-")[0].lower()
+    print("Language selection updated.")
+    print("------------------------------")
+
 # Run the main loop
 def run_main(font_size):
-    keyboard.add_hotkey('p', toggle_pause)
-    keyboard.add_hotkey('t', toggle_display_mode)
+    global enable_shortcuts
+    enable_shortcuts = get_yes_no_input("Do you want to enable keyboard shortcuts? (y/n): ")
+    if enable_shortcuts:
+        keyboard.add_hotkey('p', toggle_pause)
+        keyboard.add_hotkey('d', toggle_display_mode)
+        keyboard.add_hotkey('l', return_to_language_selection)
+        keyboard.add_hotkey('s', lambda: toggle_subtitle_visibility(subtitle))
+        keyboard.add_hotkey('b', lambda: None)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     subtitle, label = create_subtitle(font_size)
-    keyboard.add_hotkey('s', lambda: toggle_subtitle_visibility(subtitle))
     threading.Thread(target=loop.run_until_complete, args=(main_loop(label),), daemon=True).start()
     subtitle.mainloop()
 
 if __name__ == "__main__":
-    keyboard.add_hotkey('b', lambda: None)
     run_main(font_size)
