@@ -141,6 +141,11 @@ def create_translation_window(font_size=14):
     label = Label(window, text="", font=("Arial", font_size), wraplength=1480, fg='white', bg='black')
     label.pack(expand=True, fill='both')
 
+    def update_wraplength(event):
+        label.config(wraplength=window.winfo_width() - 20)
+
+    window.bind("<Configure>", update_wraplength)
+
     resize_button = Canvas(window, width=15, height=15, bg='black', highlightthickness=0, cursor='size_nw_se')
     resize_button.place(relx=1.0, rely=1.0, anchor='se')
     resize_button.create_polygon(0, 15, 15, 0, 15, 15, fill='grey')
