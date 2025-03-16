@@ -337,14 +337,14 @@ async def main_loop(label):
                 print(f"Could not request results; {req_err}")
                 print("------------------------------\n")
 
-def clear_input_buffer():
-    if os.name == 'nt':
+def flush_input():
+    try:
         import msvcrt
         while msvcrt.kbhit():
             msvcrt.getch()
-    else:
-        import termios
-        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    except ImportError:
+        import sys, termios
+        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
 
 def return_to_language_selection(label):
     global source_lang, target_lang, src_lang_for_trans, paused
@@ -353,8 +353,7 @@ def return_to_language_selection(label):
     print("Returning to language selection...")
     show_temp_message(label, "Returning to language selection...", duration=2)
     time.sleep(2)
-    # Clear user input buffer before requesting language
-    clear_input_buffer()
+    flush_input()
     source_lang = select_language("Enter the source language code: ", valid_lang_codes)
     target_lang = select_language("Enter the target language code: ", valid_lang_codes)
     src_lang_for_trans = source_lang.split("-")[0].lower()
