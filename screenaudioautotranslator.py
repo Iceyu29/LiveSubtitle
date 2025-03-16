@@ -272,7 +272,7 @@ async def main_loop(label):
                   "| b   | Break sentence                           |\n"
                   "| l   | Return to language selection             |\n"
                   "--------------------------------------------------\n")
-            print("------------------------------\n")
+        print("------------------------------\n")
         while True:
             audio_data, voice_detected = listen_until_break(source)
             if not voice_detected:
