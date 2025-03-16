@@ -6,6 +6,8 @@ import speech_recognition as sr
 from googletrans import Translator
 from tkinter import Tk, Label, Canvas
 import threading
+import sys
+import os
 
 print(r"""  ____                              _             _ _     _____                    _       _             
  / ___|  ___ _ __ ___  ___ _ __    / \  _   _  __| (_) __|_   _| __ __ _ _ __  ___| | __ _| |_ ___  _ __ 
@@ -85,34 +87,46 @@ valid_lang_codes = {
 }
 print("------------------------------")
 
-def get_valid_input(prompt, valid_options):
+def select_language(prompt, valid_options):
     while (user_input := input(prompt).strip()) not in valid_options:
         print("Invalid input. Please try again.\n")
     return user_input
 
-def get_yes_no_input(prompt):
-    while (user_input := input(prompt).strip().lower()) not in {"y", "n"}:
+def enable_shortcuts(label, subtitle):
+    global enable_shortcuts
+    while (user_input := input("Do you want to enable keyboard shortcuts? (y/n): ").strip().lower()) not in {"y", "n"}:
         print("Invalid input. Please enter 'y' or 'n'.\n")
-    return user_input == "y"
+    enable_shortcuts = user_input == "y"
+    print("------------------------------")
+    if enable_shortcuts:
+        keyboard.add_hotkey('p', lambda: toggle_pause(label))
+        keyboard.add_hotkey('d', lambda: toggle_display_mode(label))
+        keyboard.add_hotkey('l', lambda: return_to_language_selection(label))
+        keyboard.add_hotkey('s', lambda: toggle_subtitle_visibility(subtitle))
+        keyboard.add_hotkey('b', lambda: None)
 
-source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
-target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
+source_lang = select_language("Enter the source language code: ", valid_lang_codes)
+target_lang = select_language("Enter the target language code: ", valid_lang_codes)
 font_size = 14
 src_lang_for_trans = source_lang.split("-")[0].lower()
 translator = Translator()
 
-print("------------------------------")
-
 # Control pause and resume
 paused = False
 
-def toggle_pause():
+def toggle_pause(label):
     global paused
     paused = not paused
     if paused:
+        print("------------------------------")
         print("Paused.")
+        print("------------------------------\n")
+        show_temp_message(label, "Paused.")
     else:
+        print("------------------------------")
         print("Resumed.")
+        print("------------------------------\n")
+        show_temp_message(label, "Resumed.")
 
 # Control subtitle visibility
 subtitle_visible = True
@@ -122,24 +136,34 @@ def toggle_subtitle_visibility(subtitle):
     subtitle_visible = not subtitle_visible
     if subtitle_visible:
         subtitle.deiconify()
+        print("------------------------------")
         print("Subtitle is visible.")
+        print("------------------------------\n")
     else:
         subtitle.withdraw()
+        print("------------------------------")
         print("Subtitle is hidden.")
-
+        print("------------------------------\n")
+        
 # Control text display mode
 display_both = True
 
-def toggle_display_mode():
+def toggle_display_mode(label):
     global display_both
     display_both = not display_both
     if display_both:
+        print("------------------------------")
         print("Displaying both recognized and translated text.")
+        print("------------------------------\n")
+        show_temp_message(label, "Displaying both recognized and translated text.")
     else:
+        print("------------------------------")
         print("Displaying only translated text.")
+        print("------------------------------\n")
+        show_temp_message(label, "Displaying only translated text.")
 
 # Listen to audio until a break key is pressed or silence is detected
-def listen_until_break(source, break_key='b', silence_threshold=300, silence_duration=0.3):
+def listen_until_break(source, label, break_key='b', silence_threshold=300, silence_duration=0.5):
     global paused
     frames = []
     chunk = getattr(source, "CHUNK", 1024)
@@ -154,12 +178,17 @@ def listen_until_break(source, break_key='b', silence_threshold=300, silence_dur
         try:
             data = source.stream.read(chunk)
         except Exception as e:
+            print("------------------------------")
             print("Error reading audio data:", e)
+            print("------------------------------\n")
             break
         frames.append(data)
         # Check if the break key is pressed
         if enable_shortcuts and keyboard.is_pressed(break_key):
-            print(f"Break key '{break_key}' pressed.")
+            print("------------------------------")
+            print(f"Break key pressed.")
+            print("------------------------------\n")
+            show_temp_message(label, f"Break key pressed.")
             time.sleep(0.05)
             break
         rms_value = audioop.rms(data, sample_width)
@@ -175,6 +204,16 @@ def listen_until_break(source, break_key='b', silence_threshold=300, silence_dur
                     break
     audio_chunk = b"".join(frames)
     return sr.AudioData(audio_chunk, sample_rate, sample_width), voice_detected
+
+def show_temp_message(label, message, duration=0.5):
+    original_text = label.cget("text")
+    label.config(text=message)
+    label.update_idletasks()
+    label.update()
+    time.sleep(duration)
+    label.config(text=original_text)
+    label.update_idletasks()
+    label.update()
 
 # Create a tkinter subtitle for displaying subtitles
 def create_subtitle(font_size=14):
@@ -259,10 +298,10 @@ async def main_loop(label):
         print("------------------------------")
         print("Calibrating for speech recognition...")
         recognizer.adjust_for_ambient_noise(source)
-        print("Calibration complete.\n")
+        print("Calibration complete.")
         time.sleep(1)
         if enable_shortcuts:
-            print("Keyboard Shortcuts:\n"
+            print("\nKeyboard Shortcuts:\n"
                   "--------------------------------------------------\n"
                   "| Key | Function                                 |\n"
                   "--------------------------------------------------\n"
@@ -271,10 +310,11 @@ async def main_loop(label):
                   "| s   | Show/Hide subtitles                      |\n"
                   "| b   | Break sentence                           |\n"
                   "| l   | Return to language selection             |\n"
-                  "--------------------------------------------------\n")
+                  "--------------------------------------------------")
+        print(f"\nTranslating from ({source_lang}) to ({target_lang})")
         print("------------------------------\n")
         while True:
-            audio_data, voice_detected = listen_until_break(source)
+            audio_data, voice_detected = listen_until_break(source, label)
             if not voice_detected:
                 print("------------------------------")
                 print("No voice detected.")
@@ -297,29 +337,37 @@ async def main_loop(label):
                 print(f"Could not request results; {req_err}")
                 print("------------------------------\n")
 
-def return_to_language_selection():
-    global source_lang, target_lang, src_lang_for_trans
-    print("Returning to language selection...")
-    time.sleep(2)
-    source_lang = get_valid_input("Enter the source language code: ", valid_lang_codes)
-    target_lang = get_valid_input("Enter the target language code: ", valid_lang_codes)
-    src_lang_for_trans = source_lang.split("-")[0].lower()
-    print("Language selection updated.")
-    print("------------------------------")
+def clear_input_buffer():
+    if os.name == 'nt':
+        import msvcrt
+        while msvcrt.kbhit():
+            msvcrt.getch()
+    else:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
 
-# Run the main loop
+def return_to_language_selection(label):
+    global source_lang, target_lang, src_lang_for_trans, paused
+    paused = True
+    print("------------------------------")
+    print("Returning to language selection...")
+    show_temp_message(label, "Returning to language selection...", duration=2)
+    time.sleep(2)
+    # Clear user input buffer before requesting language
+    clear_input_buffer()
+    source_lang = select_language("Enter the source language code: ", valid_lang_codes)
+    target_lang = select_language("Enter the target language code: ", valid_lang_codes)
+    src_lang_for_trans = source_lang.split("-")[0].lower()
+    print(f"Translating from ({source_lang}) to ({target_lang})")
+    print("------------------------------\n")
+    show_temp_message(label, f"Translating from ({source_lang}) to ({target_lang})", duration=2)
+    paused = False
+
 def run_main(font_size):
-    global enable_shortcuts
-    enable_shortcuts = get_yes_no_input("Do you want to enable keyboard shortcuts? (y/n): ")
-    if enable_shortcuts:
-        keyboard.add_hotkey('p', toggle_pause)
-        keyboard.add_hotkey('d', toggle_display_mode)
-        keyboard.add_hotkey('l', return_to_language_selection)
-        keyboard.add_hotkey('s', lambda: toggle_subtitle_visibility(subtitle))
-        keyboard.add_hotkey('b', lambda: None)
+    subtitle, label = create_subtitle(font_size)
+    enable_shortcuts(label, subtitle)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    subtitle, label = create_subtitle(font_size)
     threading.Thread(target=loop.run_until_complete, args=(main_loop(label),), daemon=True).start()
     subtitle.mainloop()
 
