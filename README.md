@@ -12,7 +12,7 @@ This program captures audio directly from your system using Stereo Mix, processe
 - Realtek Audio Driver with Stereo Mix: "Stereo Mix" must be enabled to capture system audio. You can check this in your sound settings.
 
 # Usage
-- Run directly from code (Make sure you have Python pre-installed on yor system)
+- Run directly from code (Make sure you have Python pre-installed on your system)
   + Install required Python libraries:
 ```shell
 pip install keyboard speechrecognition googletrans
