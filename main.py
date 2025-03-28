@@ -1,6 +1,5 @@
 import asyncio
 import time
-import audioop
 import keyboard
 import speech_recognition as sr
 from googletrans import Translator
