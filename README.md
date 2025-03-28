@@ -1,5 +1,5 @@
 # Overview
-This program captures audio directly from your system using Stereo Mix, processes it through SpeechRecognition, translates the recognized speech into multiple languages with GoogleTrans, and displays the translated text in an adjustable subtitle window.
+This program use SpeechRecognition to captures audio directly from your system using Stereo Mix, translates the recognized speech into multiple languages with GoogleTrans, and displays the translated text in an adjustable subtitle window.
 
 # Main Features
 - Voice Recognition: Captures system audio using Stereo Mix with SpeechRecognition
