@@ -8,7 +8,7 @@ This program captures audio directly from your system using Stereo Mix, processe
 - Subtitles: Displays translated text in an adjustable subtitle window for a better viewing experience.
 
 # Requirements
-- Operating System: Windows 10/11 (Linux/Mac is not supported)
+- Operating System: Windows 7/8/8.1/10/11
 - Realtek Audio Driver with Stereo Mix: "Stereo Mix" must be enabled to capture system audio. You can check this in your sound settings.
 
 # Usage
