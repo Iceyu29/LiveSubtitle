@@ -18,7 +18,7 @@ This program use SpeechRecognition to captures audio directly from your system u
 pip install keyboard speechrecognition googletrans
 ```
 - Run from pre-build exe file:
-  + Download latest version: https://github.com/Iceyu29/ScreenAudioTranslate/releases/latest
+  + Download latest version: https://github.com/Iceyu29/LiveSubtitles/releases/latest
 
 **Enable Stereo Mix:**
 1. Right-click the speaker icon in the taskbar and select Sounds.
