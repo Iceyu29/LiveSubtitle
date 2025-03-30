@@ -8,8 +8,8 @@ This program use SpeechRecognition to captures audio directly from your system u
 - Subtitles: Displays translated text in an adjustable subtitle window for a better viewing experience.
 
 # Screenshots
-![Alt text](https://github.com/Iceyu29/LiveSubtitle/main/Screenshots/Screenshot1.jpg?raw=true)
-![Alt text](https://github.com/Iceyu29/LiveSubtitle/main/Screenshots/Screenshot2.jpg?raw=true)
+![Alt text](Screenshots/Screenshot1.png)
+![Alt text](Screenshots/Screenshot2.png)
 
 # Requirements
 - Operating System: Windows 7/8/8.1/10/11
