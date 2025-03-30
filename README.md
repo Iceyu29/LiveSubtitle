@@ -7,6 +7,10 @@ This program use SpeechRecognition to captures audio directly from your system u
 - Hotkeys: Convenient keyboard shortcuts for controlling the program efficiently.
 - Subtitles: Displays translated text in an adjustable subtitle window for a better viewing experience.
 
+# Screenshots
+![alt text](https://github.com/Iceyu29/LiveSubtitle/blob/main/Screenshots/image.jpg?raw=true)
+![alt text](https://github.com/Iceyu29/LiveSubtitle/blob/main/Screenshots/image.jpg?raw=true)
+
 # Requirements
 - Operating System: Windows 7/8/8.1/10/11
 - Realtek Audio Driver with Stereo Mix: "Stereo Mix" must be enabled to capture system audio. You can check this in your sound settings.
