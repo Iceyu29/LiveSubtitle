@@ -240,7 +240,6 @@ async def main(label):
                   "| p   | Pause/Resume                             |\n"
                   "| d   | Toggle display mode                      |\n"
                   "| s   | Show/Hide subtitles                      |\n"
-                  "| b   | Break sentence                           |\n"
                   "| l   | Return to language selection             |\n"
                   "--------------------------------------------------")
         time.sleep(1)
