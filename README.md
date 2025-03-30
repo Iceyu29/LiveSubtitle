@@ -1,4 +1,5 @@
 # Overview
+![Alt text](icon.ico)
 This program use SpeechRecognition to captures audio directly from your system using Stereo Mix, translates the recognized speech into multiple languages with GoogleTrans, and displays the translated text in an adjustable subtitle window.
 
 # Main Features
