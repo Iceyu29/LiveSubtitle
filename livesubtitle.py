@@ -6,21 +6,25 @@ import threading
 import queue
 
 # Function to log messages to the console
-def log_message(console, message):
+def log_message(console, message_key, extra_info=""):
+    """Log messages to the console in the current language."""
+    message = console_log_texts.get(message_key, message_key) + extra_info
     console.config(state="normal")
     console.insert(END, message + "\n")
     console.see(END)
     console.config(state="disabled")
 
-# Function to initialize the microphone
+# Function to initialize the Stereo Mix device
 mic = None
 stereo_mix_index = None
-def initialize_microphone(console):
+# Define reinit_button globally
+reinit_button = None
+def initialize_stereomix(console):
     global mic, stereo_mix_index
     mic_names = sr.Microphone.list_microphone_names()
     stereo_mix_index = next((index for index, name in enumerate(mic_names) if "stereo mix" in name.lower()), None)
     if stereo_mix_index is None:
-        log_message(console, "Stereo Mix device not found. Please ensure your system supports Realtek")
+        log_message(console, "stereo_mix_error")
         return False
     try:
         mic = sr.Microphone(device_index=stereo_mix_index)
@@ -33,40 +37,46 @@ def initialize_microphone(console):
         log_message(console, "-------------------------------------")
         return True
     except Exception:
-        log_message(console, f"Error initializing Stereo Mix. Make sure it is enabled in your system settings")
+        log_message(console, "stereo_mix_error")
         return False
 
-# Function to re-initialize the microphone
-def reinitialize_microphone(console, subtitle_button, display_button, source_combobox, target_combobox, reinit_button):
-    if initialize_microphone(console):
-        # Enable buttons and comboboxes if microphone is successfully initialized
-        subtitle_button.config(state="normal")
-        display_button.config(state="normal")
-        source_combobox.config(state="readonly")
-        target_combobox.config(state="readonly")
+def disable_controls():
+    source_combobox.config(state="disabled")
+    target_combobox.config(state="disabled")
+    subtitle_button.config(state="disabled")
+    display_button.config(state="disabled")
+
+def enable_controls():
+    source_combobox.config(state="readonly")
+    target_combobox.config(state="readonly")
+    subtitle_button.config(state="normal")
+    display_button.config(state="normal")
+
+def reinitialize_stereomix(console, reinit_button):
+    """Attempt to reinitialize Stereo Mix."""
+    if initialize_stereomix(console):
+        enable_controls()
         reinit_button.destroy()
-    else:
-        log_message(console, "Re-initialization failed. Please check your Stereo Mix in your system settings")
 
 # Function to toggle subtitles visibility
 subtitles_visible = False
 def toggle_subtitles(subtitles, subtitle_button):
     global subtitles_visible
     subtitles_visible = not subtitles_visible
+    ui_texts = console_log_texts
+    subtitle_button.config(text=ui_texts["hide_subtitles"] if subtitles_visible else ui_texts["show_subtitles"])
     if subtitles_visible:
         subtitles.deiconify()
-        subtitle_button.config(text="Hide Subtitles")
     else:
         subtitles.withdraw()
-        subtitle_button.config(text="Show Subtitles")
 
 # Function to toggle display mode
 display_both = True
 def toggle_display_mode(display_button):
     global display_both
     display_both = not display_both
-    mode = "Show Translated Only" if display_both else "Show Both"
-    display_button.config(text=mode)
+    ui_texts = console_log_texts
+    display_button.config(text=ui_texts["show_translated_only"] if not display_both else ui_texts["show_both"])
 
 # Function to update the translation text in the subtitles
 subtitle_clear_timer = None
@@ -98,18 +108,18 @@ def recognizer_thread(console):
     global recognizer_thread_running, mic
     try:
         with mic as source:
-            log_message(console, "Calibrating for speech recognition...")
+            log_message(console, "calibrating")
             recognizer.adjust_for_ambient_noise(source)
-            log_message(console, "Calibration complete")
+            log_message(console, "calibration_complete")
             while recognizer_thread_running:
                 try:
                     audio_data = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     recognized_text = recognizer.recognize_google(audio_data, language=source_lang)
                     phrase_queue.put(recognized_text)
                     log_message(console, "-------------------------------------")
-                    log_message(console, f"Recognized: {recognized_text}")
+                    log_message(console, "Recognized: ", recognized_text)
                 except Exception:
-                    log_message(console, "Recognition Error: No speech detected or unrecognized audio")
+                    log_message(console, "recognition_error")
     except Exception:
         pass
 
@@ -126,20 +136,21 @@ def translator_thread(label, console, root):
                 
                 # Schedule GUI updates in the main thread
                 root.after(0, update_translation, label, recognized_text, translation_text, root)
-                root.after(0, log_message, console, f"Translated: {translation_text}")
+                root.after(0, log_message, console, "Translated: ", translation_text)
                 log_message(console, "-------------------------------------")
             except Exception as e:
-                root.after(0, log_message, console, f"Translation Error: {e}")
+                root.after(0, log_message, console, "translation_error", str(e))
         else:
             time.sleep(0.1)
 
 # Function to start/stop the recognizer and translator threads
 def toggle_recognition(label, console, start_button, root):
     global recognizer_thread_running, translator_thread_running
+    ui_texts = console_log_texts
     if recognizer_thread_running:
         recognizer_thread_running = False
         translator_thread_running = False
-        start_button.config(text="Start")
+        start_button.config(text=ui_texts["start_button"])
         source_combobox.config(state="readonly")
         target_combobox.config(state="readonly")
     else:
@@ -149,7 +160,7 @@ def toggle_recognition(label, console, start_button, root):
         target_combobox.config(state="disabled")
         threading.Thread(target=recognizer_thread, args=(console,), daemon=True).start()
         threading.Thread(target=translator_thread, args=(label, console, root), daemon=True).start()
-        start_button.config(text="Stop")
+        start_button.config(text=ui_texts["stop_button"])
 
 def on_close(root, subtitles):
     global recognizer_thread_running, translator_thread_running
@@ -158,9 +169,60 @@ def on_close(root, subtitles):
     subtitles.destroy()
     root.destroy()
 
+# Function to update UI language
+def update_ui_language(language):
+    global current_language
+    current_language = language  # Track the current language
+    translations = {
+        "en": {
+            "source_label": "Source Language:",
+            "target_label": "Target Language:",
+            "start_button": "Start",
+            "stop_button": "Stop",
+            "show_subtitles": "Show Subtitles",
+            "hide_subtitles": "Hide Subtitles",
+            "show_translated_only": "Show Translated Only",
+            "show_both": "Show Both",
+            "reinitialize": "Reinitialize",
+            "calibrating": "Calibrating for speech recognition...",
+            "calibration_complete": "Calibration complete",
+            "recognition_error": "Recognition Error: No speech detected or unrecognized audio",
+            "translation_error": "Translation Error: ",
+        },
+        "vi": {
+            "source_label": "Ngôn ngữ nguồn:",
+            "target_label": "Ngôn ngữ đích:",
+            "start_button": "Bắt đầu",
+            "stop_button": "Dừng",
+            "show_subtitles": "Hiển thị phụ đề",
+            "hide_subtitles": "Ẩn phụ đề",
+            "show_translated_only": "Chỉ hiển thị bản dịch",
+            "show_both": "Hiển thị cả hai",
+            "reinitialize": "Khởi tạo lại",
+            "calibrating": "Đang hiệu chỉnh để nhận dạng giọng nói...",
+            "calibration_complete": "Hiệu chỉnh hoàn tất",
+            "recognition_error": "Lỗi nhận dạng: Không phát hiện giọng nói hoặc âm thanh không nhận dạng được",
+            "translation_error": "Lỗi dịch: ",
+        }
+    }
+    ui_texts = translations.get(language, translations["en"])
+    source_label.config(text=ui_texts["source_label"])
+    target_label.config(text=ui_texts["target_label"])
+    start_button.config(text=ui_texts["start_button"] if not recognizer_thread_running else ui_texts["stop_button"])
+    subtitle_button.config(text=ui_texts["show_subtitles"] if not subtitles_visible else ui_texts["hide_subtitles"])
+    display_button.config(text=ui_texts["show_translated_only"] if not display_both else ui_texts["show_both"])
+    if reinit_button and reinit_button.winfo_exists():
+        reinit_button.config(text=ui_texts["reinitialize"])
+    global console_log_texts
+    console_log_texts = ui_texts
+
+    # Update button states
+    en_button.config(state="disabled" if language == "en" else "normal")
+    vi_button.config(state="disabled" if language == "vi" else "normal")
+
 # Function to create the GUI
 def create_gui():
-    global source_combobox, target_combobox
+    global source_combobox, target_combobox, start_button, subtitle_button, display_button, source_label, target_label, console_log_texts, reinit_button, en_button, vi_button
     root = Tk()
     root.title("LiveSubtitle")
     root.geometry("600x300")
@@ -222,9 +284,16 @@ def create_gui():
     display_button = Button(control_frame, text="Show Translated Only", state="disabled", command=lambda: toggle_display_mode(display_button))
     display_button.pack(anchor="w", fill="x", pady=5)
 
-    # Re-initialize microphone button
-    reinit_button = Button(control_frame, text="Re-initialize Microphone", command=lambda: reinitialize_microphone(console, start_button, subtitle_button, display_button, source_combobox, target_combobox, reinit_button))
-    reinit_button.pack(anchor="w", fill="x", pady=5, side="bottom")  # Place at the bottom of the control frame
+    # Add language toggle buttons
+    language_frame = Frame(control_frame)
+    language_frame.pack(anchor="w", pady=5, side="bottom")
+    en_button = Button(language_frame, text="EN", width=5, command=lambda: update_ui_language("en"))
+    en_button.pack(side="left", padx=2)
+    vi_button = Button(language_frame, text="VI", width=5, command=lambda: update_ui_language("vi"))
+    vi_button.pack(side="left", padx=2)
+
+    # Initialize UI language to English
+    update_ui_language("en")
 
     # Right panel for console
     console_frame = Frame(root)
@@ -290,21 +359,15 @@ def create_gui():
     resize_button.bind("<Button-1>", start_resize)
     resize_button.bind("<B1-Motion>", do_resize)
 
-    # Initialize microphone when GUI starts
-    if not initialize_microphone(console):
-        log_message(console, "Stereo Mix initialization failed. Please re-initialize")
-        # Disable all buttons and comboboxes
-        subtitle_button.config(state="disabled")
-        display_button.config(state="disabled")
-        source_combobox.config(state="disabled")
-        target_combobox.config(state="disabled")
+    # Initialize Stereo Mix device when GUI starts
+    if not initialize_stereomix(console):
+        disable_controls()
+
+        # Add a Reinitialize button
+        reinit_button = Button(control_frame, text="Reinitialize", command=lambda: reinitialize_stereomix(console, reinit_button))
+        reinit_button.pack(anchor="w", fill="x", pady=5)
     else:
-        # Enable buttons and comboboxes if microphone is successfully initialized
-        subtitle_button.config(state="normal")
-        display_button.config(state="normal")
-        source_combobox.config(state="readonly")
-        target_combobox.config(state="readonly")
-        reinit_button.destroy()  # Remove the re-initialize button
+        enable_controls()
 
     root.mainloop()
 
