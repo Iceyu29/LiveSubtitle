@@ -46,9 +46,7 @@ LiveSubtitle provides real-time subtitles for system audio by capturing audio wi
 1. Download the latest version from the [Releases Page](https://github.com/Iceyu29/LiveSubtitles/releases/latest).
 2. Run the executable file.
 
----
-
-## 🎛️ Enabling Stereo Mix
+#### Enabling Stereo Mix
 1. Right-click the speaker icon in the taskbar and select **Sounds**.
 2. Navigate to the **Recording** tab and locate **Stereo Mix**.
 3. If it's disabled, right-click and select **Enable**.
