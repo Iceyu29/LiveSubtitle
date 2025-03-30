@@ -1,5 +1,7 @@
 # Overview
-![Alt text](icon.ico)
+)<div align="center">
+  <img src="https://i.imgur.com/8BgVXcY.png">
+</div>
 This program use SpeechRecognition to captures audio directly from your system using Stereo Mix, translates the recognized speech into multiple languages with GoogleTrans, and displays the translated text in an adjustable subtitle window.
 
 # Main Features
