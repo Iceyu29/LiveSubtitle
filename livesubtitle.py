@@ -151,13 +151,12 @@ def toggle_recognition(label, console, start_button, root):
         threading.Thread(target=translator_thread, args=(label, console, root), daemon=True).start()
         start_button.config(text="Stop")
 
-# Function to handle window close event
 def on_close(root, subtitles):
     global recognizer_thread_running, translator_thread_running
     recognizer_thread_running = False
     translator_thread_running = False
-    subtitles.destroy()  # Close the subtitles window
-    root.destroy()       # Close the main window
+    subtitles.destroy()
+    root.destroy()
 
 # Function to create the GUI
 def create_gui():
@@ -248,7 +247,7 @@ def create_gui():
     subtitles.minsize(500, 50)
     subtitles.withdraw()
 
-    # Set the close event handler for the main window
+    # Bind the close event to the on_close function
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(root, subtitles))
 
     label = Label(subtitles, text="", font=("Arial", 14), wraplength=1480, fg='white', bg='black')
