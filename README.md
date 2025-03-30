@@ -4,15 +4,16 @@
   <img src="https://github.com/Iceyu29/LiveSubtitle/blob/6bc592e731a1e9e247f1cd723e7e12d454d6602f/icon.ico" alt="LiveSubtitle Icon" width="128">
 </div>
 
-LiveSubtitle is a powerful tool that captures audio directly from your system using Stereo Mix, translates the recognized speech into multiple languages with GoogleTrans, and displays the translated text in an adjustable subtitle window. It is designed to enhance accessibility and provide a seamless multilingual experience.
+LiveSubtitle provides real-time subtitles for system audio by capturing audio with Stereo Mix, transcribing it using Google's Speech Recognition API, and translating it via Google Translator. It features a customizable subtitle window, multilingual support, and an intuitive interface for accessibility and communication.
 
 ---
 
 ## ✨ Features
-- **Voice Recognition**: Captures system audio using Stereo Mix with SpeechRecognition.
-- **Real-Time Translation**: Supports multiple languages using GoogleTrans for instant translation.
-- **Hotkeys**: Convenient keyboard shortcuts for efficient control.
-- **Customizable Subtitles**: Displays translated text in an adjustable subtitle window for an optimal viewing experience.
+- **Real-Time Speech Recognition**: Captures system audio and recognizes speech using Google's Speech Recognition API.
+- **Multilingual Translation**: Translates recognized speech into multiple languages using Google Translator.
+- **Customizable Subtitle Display**: Adjustable subtitle window with options to show both original and translated text or only the translation.
+- **User-Friendly GUI**: Intuitive interface with controls for language selection, subtitle visibility, and display modes. Support both English and Vietnamese.
+- **Error Logging**: Logs errors and messages to a console for better debugging and user feedback.
 
 ---
 
