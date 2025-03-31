@@ -7,7 +7,6 @@ import queue
 
 # Function to log messages to the console
 def log_message(console, message_key, extra_info=""):
-    """Log messages to the console in the current language."""
     message = console_log_texts.get(message_key, message_key) + extra_info
     console.config(state="normal")
     console.insert(END, message + "\n")
@@ -116,7 +115,6 @@ def recognizer_thread(console):
                     audio_data = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     recognized_text = recognizer.recognize_google(audio_data, language=source_lang)
                     phrase_queue.put(recognized_text)
-                    log_message(console, "-------------------------------------")
                     log_message(console, "Recognized: ", recognized_text)
                 except Exception:
                     log_message(console, "recognition_error")
@@ -137,7 +135,6 @@ def translator_thread(label, console, root):
                 # Schedule GUI updates in the main thread
                 root.after(0, update_translation, label, recognized_text, translation_text, root)
                 root.after(0, log_message, console, "Translated: ", translation_text)
-                log_message(console, "-------------------------------------")
             except Exception as e:
                 root.after(0, log_message, console, "translation_error", str(e))
         else:
@@ -225,6 +222,7 @@ def create_gui():
     global source_combobox, target_combobox, start_button, subtitle_button, display_button, source_label, target_label, console_log_texts, reinit_button, en_button, vi_button
     root = Tk()
     root.title("LiveSubtitle")
+    root.iconbitmap("icon.ico")
     root.geometry("600x300")
     root.resizable(False, False)
 
