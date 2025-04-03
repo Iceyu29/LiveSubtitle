@@ -9,9 +9,8 @@ import ctypes
 myappid = 'mycompany.myproduct.subproduct.version' # arbitrary string
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
-console_widget = None  # Global variable for the console widget
-
 # Function to log messages to the console
+console_widget = None
 def log_message(message_key, extra_info=""):
     global console_widget
     if console_widget is None:
@@ -23,10 +22,8 @@ def log_message(message_key, extra_info=""):
     console_widget.config(state="disabled")
 
 # Function to initialize the Stereo Mix device
-mic = None
-stereo_mix_index = None
 def initialize_stereomix():
-    global mic, stereo_mix_index
+    global mic
     mic_names = sr.Microphone.list_microphone_names()
     stereo_mix_index = next((index for index, name in enumerate(mic_names) if "stereo mix" in name.lower()), None)
     if stereo_mix_index is None:
@@ -80,7 +77,7 @@ def update_translation(label, recognized_text, translation_text, root):
     # Reset the subtitle clear timer
     if subtitle_clear_timer is not None:
         subtitle_clear_timer.cancel()
-    subtitle_clear_timer = threading.Timer(3.0, clear_subtitle, args=(label, root))
+    subtitle_clear_timer = threading.Timer(5.0, clear_subtitle, args=(label, root))
     subtitle_clear_timer.start()
 
 # Function to clear the subtitle text
@@ -97,29 +94,34 @@ def recognizer_thread():
     global recognizer_thread_running
     try:
         with mic as source:
+            try:
+                recognizer.adjust_for_ambient_noise(source, duration=3)
+                log_message("calibration_complete")
+            except Exception:
+                log_message("calibration_error")
             while recognizer_thread_running:
                 try:
-                    audio_data = recognizer.listen(source, timeout=None, phrase_time_limit=5)
+                    audio_data = recognizer.listen(source, timeout=1, phrase_time_limit=10)
                     recognized_text = recognizer.recognize_google(audio_data, language=source_lang)
                     phrase_queue.put(recognized_text)
                     log_message("Recognized: ", recognized_text)
+                except sr.UnknownValueError:
+                    log_message("recognition_error", "Could not understand audio")
                 except Exception:
-                    log_message("recognition_error")
+                    pass
     except Exception:
         pass
 
 # Translator thread for processing queued phrases
-translator_thread_running = False  # Add a global flag for the translator thread
+translator_thread_running = False
 def translator_thread(label, root):
     global translator_thread_running
     translator = GoogleTranslator(source=source_lang, target=target_lang)
-    while translator_thread_running:  # Check the running flag
+    while translator_thread_running:
         if not phrase_queue.empty():
             try:
                 recognized_text = phrase_queue.get()
                 translation_text = translator.translate(recognized_text)
-                
-                # Schedule GUI updates in the main thread
                 root.after(0, update_translation, label, recognized_text, translation_text, root)
                 root.after(0, log_message, "Translated: ", translation_text)
             except Exception as e:
@@ -156,7 +158,7 @@ def on_close(root, subtitles):
 # Function to update UI language
 def update_ui_language(language):
     global current_language
-    current_language = language  # Track the current language
+    current_language = language
     translations = {
         "en": {
             "source_label": "Source Language:",
@@ -168,9 +170,8 @@ def update_ui_language(language):
             "show_translated_only": "Translated Text Only",
             "show_both": "Show Both",
             "reinitialize": "Reinitialize",
-            "calibrating": "Calibrating for speech recognition, please wait...",
             "calibration_complete": "Calibration completed successfully.",
-            "recognition_error": "Recognition Error: Unable to detect speech or unrecognized audio.",
+            "recognition_error": "Recognition Error: ",
             "translation_error": "Translation Error: ",
             "stereo_mix_not_found": "Stereo Mix not found. Your system may not support Realtek(R) Audio.",
             "stereo_mix_success": "Stereo Mix initialized successfully.",
@@ -188,9 +189,8 @@ def update_ui_language(language):
             "show_translated_only": "Chỉ văn bản dịch",
             "show_both": "Hiển thị cả hai",
             "reinitialize": "Khởi tạo lại",
-            "calibrating": "Đang hiệu chỉnh để nhận dạng giọng nói, vui lòng đợi...",
             "calibration_complete": "Hiệu chỉnh hoàn tất thành công.",
-            "recognition_error": "Lỗi nhận dạng: Không phát hiện giọng nói hoặc âm thanh không nhận dạng được.",
+            "recognition_error": "Lỗi nhận dạng: ",
             "translation_error": "Lỗi dịch: ",
             "stereo_mix_not_found": "Không tìm thấy Stereo Mix. Hệ thống của bạn có thể không hỗ trợ Realtek(R) Audio.",
             "stereo_mix_success": "Khởi tạo Stereo Mix thành công.",
@@ -276,7 +276,6 @@ def create_gui():
         global source_lang, target_lang
         source_lang = LANGUAGES.get(source_combobox.get(), "")
         target_lang = LANGUAGES.get(target_combobox.get(), "")
-        # Enable Start/Stop button only if both languages are selected and not "Select Language"
         start_button.config(state="normal" if source_lang and target_lang and mic else "disabled")
 
     source_combobox.bind("<<ComboboxSelected>>", lambda _: update_languages())
@@ -313,7 +312,7 @@ def create_gui():
     console_frame = Frame(root)
     console_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
-    console_widget = Text(console_frame, state="disabled", wrap="word", height=10)  # Assign to global variable
+    console_widget = Text(console_frame, state="disabled", wrap="word", height=10)
     console_widget.pack(side="left", fill="both", expand=True)
 
     scrollbar = Scrollbar(console_frame, command=console_widget.yview)
@@ -382,5 +381,5 @@ if __name__ == "__main__":
                 "- https:/https://github.com/Iceyu29 -\n"
                 "-------------------------------------\n")
     log_message("initializing_stereomix")
-    root.after(1000, lambda: initialize_stereomix())
+    root.after(500, lambda: initialize_stereomix())
     root.mainloop()
