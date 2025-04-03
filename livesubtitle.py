@@ -4,58 +4,48 @@ from deep_translator import GoogleTranslator
 from tkinter import Tk, Label, Button, Frame, ttk, Text, Scrollbar, Canvas, END
 import threading
 import queue
+import ctypes
+
+myappid = 'mycompany.myproduct.subproduct.version' # arbitrary string
+ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+console_widget = None  # Global variable for the console widget
 
 # Function to log messages to the console
-def log_message(console, message_key, extra_info=""):
+def log_message(message_key, extra_info=""):
+    global console_widget
+    if console_widget is None:
+        return
     message = console_log_texts.get(message_key, message_key) + extra_info
-    console.config(state="normal")
-    console.insert(END, message + "\n")
-    console.see(END)
-    console.config(state="disabled")
+    console_widget.config(state="normal")
+    console_widget.insert(END, message + "\n")
+    console_widget.see(END)
+    console_widget.config(state="disabled")
 
 # Function to initialize the Stereo Mix device
 mic = None
 stereo_mix_index = None
-# Define reinit_button globally
-reinit_button = None
-def initialize_stereomix(console):
+def initialize_stereomix():
     global mic, stereo_mix_index
     mic_names = sr.Microphone.list_microphone_names()
     stereo_mix_index = next((index for index, name in enumerate(mic_names) if "stereo mix" in name.lower()), None)
     if stereo_mix_index is None:
-        log_message(console, "stereo_mix_error")
+        log_message("stereo_mix_not_found")
         return False
     try:
         mic = sr.Microphone(device_index=stereo_mix_index)
         with mic as source:
-            recognizer.adjust_for_ambient_noise(source, duration=1)
-        # Print credit after successful initialization
-        log_message(console, "-------------------------------------")
-        log_message(console, "- Copyright of Iceyu29, 2025        -")
-        log_message(console, "- https:/https://github.com/Iceyu29 -")
-        log_message(console, "-------------------------------------")
+            recognizer.adjust_for_ambient_noise(source)
+        source_combobox.config(state="readonly")
+        target_combobox.config(state="readonly")
+        subtitle_button.config(state="normal")
+        display_button.config(state="normal")
+        log_message("stereo_mix_success")
         return True
     except Exception:
-        log_message(console, "stereo_mix_error")
+        log_message("stereo_mix_error")
+        log_message("reinitialize_warn")
         return False
-
-def disable_controls():
-    source_combobox.config(state="disabled")
-    target_combobox.config(state="disabled")
-    subtitle_button.config(state="disabled")
-    display_button.config(state="disabled")
-
-def enable_controls():
-    source_combobox.config(state="readonly")
-    target_combobox.config(state="readonly")
-    subtitle_button.config(state="normal")
-    display_button.config(state="normal")
-
-def reinitialize_stereomix(console, reinit_button):
-    """Attempt to reinitialize Stereo Mix."""
-    if initialize_stereomix(console):
-        enable_controls()
-        reinit_button.destroy()
 
 # Function to toggle subtitles visibility
 subtitles_visible = False
@@ -75,7 +65,7 @@ def toggle_display_mode(display_button):
     global display_both
     display_both = not display_both
     ui_texts = console_log_texts
-    display_button.config(text=ui_texts["show_translated_only"] if not display_both else ui_texts["show_both"])
+    display_button.config(text=ui_texts["show_both"] if not display_both else ui_texts["show_translated_only"])
 
 # Function to update the translation text in the subtitles
 subtitle_clear_timer = None
@@ -103,27 +93,24 @@ def clear_subtitle(label, root):
 recognizer_thread_running = False
 recognizer = sr.Recognizer()
 phrase_queue = queue.Queue()
-def recognizer_thread(console):
-    global recognizer_thread_running, mic
+def recognizer_thread():
+    global recognizer_thread_running
     try:
         with mic as source:
-            log_message(console, "calibrating")
-            recognizer.adjust_for_ambient_noise(source)
-            log_message(console, "calibration_complete")
             while recognizer_thread_running:
                 try:
                     audio_data = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     recognized_text = recognizer.recognize_google(audio_data, language=source_lang)
                     phrase_queue.put(recognized_text)
-                    log_message(console, "Recognized: ", recognized_text)
+                    log_message("Recognized: ", recognized_text)
                 except Exception:
-                    log_message(console, "recognition_error")
+                    log_message("recognition_error")
     except Exception:
         pass
 
 # Translator thread for processing queued phrases
 translator_thread_running = False  # Add a global flag for the translator thread
-def translator_thread(label, console, root):
+def translator_thread(label, root):
     global translator_thread_running
     translator = GoogleTranslator(source=source_lang, target=target_lang)
     while translator_thread_running:  # Check the running flag
@@ -134,14 +121,14 @@ def translator_thread(label, console, root):
                 
                 # Schedule GUI updates in the main thread
                 root.after(0, update_translation, label, recognized_text, translation_text, root)
-                root.after(0, log_message, console, "Translated: ", translation_text)
+                root.after(0, log_message, "Translated: ", translation_text)
             except Exception as e:
-                root.after(0, log_message, console, "translation_error", str(e))
+                root.after(0, log_message, "translation_error", str(e))
         else:
             time.sleep(0.1)
 
 # Function to start/stop the recognizer and translator threads
-def toggle_recognition(label, console, start_button, root):
+def toggle_recognition(label, start_button, root):
     global recognizer_thread_running, translator_thread_running
     ui_texts = console_log_texts
     if recognizer_thread_running:
@@ -155,8 +142,8 @@ def toggle_recognition(label, console, start_button, root):
         translator_thread_running = True
         source_combobox.config(state="disabled")
         target_combobox.config(state="disabled")
-        threading.Thread(target=recognizer_thread, args=(console,), daemon=True).start()
-        threading.Thread(target=translator_thread, args=(label, console, root), daemon=True).start()
+        threading.Thread(target=recognizer_thread, daemon=True).start()
+        threading.Thread(target=translator_thread, args=(label, root), daemon=True).start()
         start_button.config(text=ui_texts["stop_button"])
 
 def on_close(root, subtitles):
@@ -178,13 +165,18 @@ def update_ui_language(language):
             "stop_button": "Stop",
             "show_subtitles": "Show Subtitles",
             "hide_subtitles": "Hide Subtitles",
-            "show_translated_only": "Show Translated Only",
+            "show_translated_only": "Translated Text Only",
             "show_both": "Show Both",
             "reinitialize": "Reinitialize",
-            "calibrating": "Calibrating for speech recognition...",
-            "calibration_complete": "Calibration complete",
-            "recognition_error": "Recognition Error: No speech detected or unrecognized audio",
+            "calibrating": "Calibrating for speech recognition, please wait...",
+            "calibration_complete": "Calibration completed successfully.",
+            "recognition_error": "Recognition Error: Unable to detect speech or unrecognized audio.",
             "translation_error": "Translation Error: ",
+            "stereo_mix_not_found": "Stereo Mix not found. Your system may not support Realtek(R) Audio.",
+            "stereo_mix_success": "Stereo Mix initialized successfully.",
+            "stereo_mix_error": "Failed to initialize Stereo Mix. Ensure it is enabled in your system sound settings.",
+            "reinitialize_warn": "Please press reinitialize the Stereo Mix device.",
+            "initializing_stereomix": "Initializing Stereo Mix...",
         },
         "vi": {
             "source_label": "Ngôn ngữ nguồn:",
@@ -193,13 +185,18 @@ def update_ui_language(language):
             "stop_button": "Dừng",
             "show_subtitles": "Hiển thị phụ đề",
             "hide_subtitles": "Ẩn phụ đề",
-            "show_translated_only": "Chỉ hiển thị bản dịch",
+            "show_translated_only": "Chỉ văn bản dịch",
             "show_both": "Hiển thị cả hai",
             "reinitialize": "Khởi tạo lại",
-            "calibrating": "Đang hiệu chỉnh để nhận dạng giọng nói...",
-            "calibration_complete": "Hiệu chỉnh hoàn tất",
-            "recognition_error": "Lỗi nhận dạng: Không phát hiện giọng nói hoặc âm thanh không nhận dạng được",
+            "calibrating": "Đang hiệu chỉnh để nhận dạng giọng nói, vui lòng đợi...",
+            "calibration_complete": "Hiệu chỉnh hoàn tất thành công.",
+            "recognition_error": "Lỗi nhận dạng: Không phát hiện giọng nói hoặc âm thanh không nhận dạng được.",
             "translation_error": "Lỗi dịch: ",
+            "stereo_mix_not_found": "Không tìm thấy Stereo Mix. Hệ thống của bạn có thể không hỗ trợ Realtek(R) Audio.",
+            "stereo_mix_success": "Khởi tạo Stereo Mix thành công.",
+            "stereo_mix_error": "Không thể khởi tạo Stereo Mix. Đảm bảo nó đã được bật trong cài đặt âm thanh hệ thống.",
+            "reinitialize_warn": "Vui lòng bấm khởi tạo lại thiết bị Stereo Mix.",
+            "initializing_stereomix": "Đang khởi tạo Stereo Mix...",
         }
     }
     ui_texts = translations.get(language, translations["en"])
@@ -207,7 +204,7 @@ def update_ui_language(language):
     target_label.config(text=ui_texts["target_label"])
     start_button.config(text=ui_texts["start_button"] if not recognizer_thread_running else ui_texts["stop_button"])
     subtitle_button.config(text=ui_texts["show_subtitles"] if not subtitles_visible else ui_texts["hide_subtitles"])
-    display_button.config(text=ui_texts["show_translated_only"] if not display_both else ui_texts["show_both"])
+    display_button.config(text=ui_texts["show_both"] if not display_both else ui_texts["show_translated_only"])
     if reinit_button and reinit_button.winfo_exists():
         reinit_button.config(text=ui_texts["reinitialize"])
     global console_log_texts
@@ -217,9 +214,24 @@ def update_ui_language(language):
     en_button.config(state="disabled" if language == "en" else "normal")
     vi_button.config(state="disabled" if language == "vi" else "normal")
 
+    # Update console text to match the selected language
+    if console_widget:
+        console_widget.config(state="normal")
+        console_lines = console_widget.get("1.0", END).strip().split("\n")
+        console_widget.delete("1.0", END)
+        for line in console_lines:
+            updated_line = line
+            for key, text in translations[current_language].items():
+                for prev_lang, prev_texts in translations.items():
+                    if prev_lang != current_language and prev_texts.get(key) in line:
+                        updated_line = line.replace(prev_texts[key], text)
+                        break
+            console_widget.insert(END, updated_line + "\n")
+        console_widget.config(state="disabled")
+
 # Function to create the GUI
 def create_gui():
-    global source_combobox, target_combobox, start_button, subtitle_button, display_button, source_label, target_label, console_log_texts, reinit_button, en_button, vi_button
+    global source_combobox, target_combobox, start_button, subtitle_button, display_button, source_label, target_label, console_log_texts, reinit_button, en_button, vi_button, console_widget
     root = Tk()
     root.title("LiveSubtitle")
     root.iconbitmap("icon.ico")
@@ -248,14 +260,14 @@ def create_gui():
     # Source language combobox
     source_label = Label(control_frame, text="Source Language:")
     source_label.pack(anchor="w")
-    source_combobox = ttk.Combobox(control_frame, values=["Select Language"] + list(LANGUAGES.keys()), state="readonly")
+    source_combobox = ttk.Combobox(control_frame, values=["Select Language"] + list(LANGUAGES.keys()), state="disabled")
     source_combobox.set("Select Language")
     source_combobox.pack(anchor="w", fill="x")
 
     # Target language combobox
     target_label = Label(control_frame, text="Target Language:")
     target_label.pack(anchor="w")
-    target_combobox = ttk.Combobox(control_frame, values=["Select Language"] + list(LANGUAGES.keys()), state="readonly")
+    target_combobox = ttk.Combobox(control_frame, values=["Select Language"] + list(LANGUAGES.keys()), state="disabled")
     target_combobox.set("Select Language")
     target_combobox.pack(anchor="w", fill="x")
 
@@ -271,16 +283,20 @@ def create_gui():
     target_combobox.bind("<<ComboboxSelected>>", lambda _: update_languages())
 
     # Start/Stop button
-    start_button = Button(control_frame, text="Start", state="disabled", command=lambda: toggle_recognition(label, console, start_button, root))
+    start_button = Button(control_frame, state="disabled", command=lambda: toggle_recognition(label, start_button, root))
     start_button.pack(anchor="w", fill="x", pady=5)
 
     # Subtitle toggle button
-    subtitle_button = Button(control_frame, text="Show Subtitles", state="disabled", command=lambda: toggle_subtitles(subtitles, subtitle_button))
+    subtitle_button = Button(control_frame, state="disabled", command=lambda: toggle_subtitles(subtitles, subtitle_button))
     subtitle_button.pack(anchor="w", fill="x", pady=5)
 
     # Display mode button
-    display_button = Button(control_frame, text="Show Translated Only", state="disabled", command=lambda: toggle_display_mode(display_button))
+    display_button = Button(control_frame, state="disabled", command=lambda: toggle_display_mode(display_button))
     display_button.pack(anchor="w", fill="x", pady=5)
+
+    # Reinitialize button
+    reinit_button = Button(control_frame, text="Reinitialize", command=lambda: initialize_stereomix())
+    reinit_button.pack(anchor="w", fill="x", pady=5)
 
     # Add language toggle buttons
     language_frame = Frame(control_frame)
@@ -297,12 +313,12 @@ def create_gui():
     console_frame = Frame(root)
     console_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
-    console = Text(console_frame, state="disabled", wrap="word", height=10)
-    console.pack(side="left", fill="both", expand=True)
+    console_widget = Text(console_frame, state="disabled", wrap="word", height=10)  # Assign to global variable
+    console_widget.pack(side="left", fill="both", expand=True)
 
-    scrollbar = Scrollbar(console_frame, command=console.yview)
+    scrollbar = Scrollbar(console_frame, command=console_widget.yview)
     scrollbar.pack(side="right", fill="y")
-    console.config(yscrollcommand=scrollbar.set)
+    console_widget.config(yscrollcommand=scrollbar.set)
 
     # Subtitle window
     subtitles = Tk()
@@ -357,17 +373,14 @@ def create_gui():
     resize_button.bind("<Button-1>", start_resize)
     resize_button.bind("<B1-Motion>", do_resize)
 
-    # Initialize Stereo Mix device when GUI starts
-    if not initialize_stereomix(console):
-        disable_controls()
-
-        # Add a Reinitialize button
-        reinit_button = Button(control_frame, text="Reinitialize", command=lambda: reinitialize_stereomix(console, reinit_button))
-        reinit_button.pack(anchor="w", fill="x", pady=5)
-    else:
-        enable_controls()
-
-    root.mainloop()
+    return root
 
 if __name__ == "__main__":
-    create_gui()
+    root = create_gui()
+    log_message("-------------------------------------\n"
+                "- Copyright of Iceyu29, 2025        -\n"
+                "- https:/https://github.com/Iceyu29 -\n"
+                "-------------------------------------\n")
+    log_message("initializing_stereomix")
+    root.after(1000, lambda: initialize_stereomix())
+    root.mainloop()
