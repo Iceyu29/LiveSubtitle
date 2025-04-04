@@ -101,7 +101,7 @@ def recognizer_thread():
                 log_message("calibration_error")
             while recognizer_thread_running:
                 try:
-                    audio_data = recognizer.listen(source, timeout=1, phrase_time_limit=10)
+                    audio_data = recognizer.listen(source, timeout=1, phrase_time_limit=5)
                     recognized_text = recognizer.recognize_google(audio_data, language=source_lang)
                     phrase_queue.put(recognized_text)
                     log_message("Recognized: ", recognized_text)
